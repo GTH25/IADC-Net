@@ -48,7 +48,7 @@ class Laplace_fast(nn.Module):
 
         return F.conv1d(waveforms, self.filters, stride=1, padding=1, dilation=1, bias=None, groups=1)
 
-# --------------------------------------------------------
+
 
 
 def Mexh(p):
@@ -102,7 +102,7 @@ class Mexh_fast(nn.Module):
 
         return F.conv1d(waveforms, self.filters, stride=1, padding=1, dilation=1, bias=None, groups=1)
 
-# --------------------------------------------------------
+
 
 
 
@@ -155,7 +155,7 @@ class Morlet_fast(nn.Module):
 
         return F.conv1d(waveforms, self.filters, stride=1, padding=1, dilation=1, bias=None, groups=1)
 
-# ----------------------------------------------
+
 
 
 
@@ -197,7 +197,7 @@ class SoftThreshold(nn.Module):
         A_ = Threshold(x)
         x = piecewise_linear(x, A_, self.B_.to(device))
         return x
-# ----------------------------------------------
+
 
 
 
