@@ -236,6 +236,8 @@ class ConcatenateLayer(nn.Module):
         return x
 concat_layer = ConcatenateLayer(dim=1)
 
+# --------------------------------------------------------
+
 class FDWCN_Net(nn.Module):
     def __init__(self, in_channel=1, out_channel=10):
         super(FDWCN_Net, self).__init__()
