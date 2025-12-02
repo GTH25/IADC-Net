@@ -8,7 +8,8 @@ from thop import profile
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-def Laplace(p): #Laplace小波基函数
+def Laplace(p): 
+#Laplace wavelet basis function
     A = 0.08
     ep = 0.03
     tal = 0.1
@@ -20,6 +21,7 @@ def Laplace(p): #Laplace小波基函数
 
 
 class Laplace_fast(nn.Module):
+"""Laplace wavelet convolution"""
 
     def __init__(self, out_channels, kernel_size, in_channels=1):
 
@@ -36,37 +38,35 @@ class Laplace_fast(nn.Module):
         if kernel_size % 2 == 0:
             self.kernel_size = self.kernel_size + 1
 
-        self.a_ = nn.Parameter((torch.linspace(1, 10, out_channels)).view(-1, 1), requires_grad=True) #尺度参数
+        self.a_ = nn.Parameter((torch.linspace(1, 10, out_channels)).view(-1, 1), requires_grad=True) #scale parameter
 
-        self.b_ = nn.Parameter((torch.linspace(0, 10, out_channels)).view(-1, 1), requires_grad=True) #平移参数
+        self.b_ = nn.Parameter((torch.linspace(0, 10, out_channels)).view(-1, 1), requires_grad=True) #translation parameters
 
 
     def forward(self, waveforms):
 
         time_disc = torch.linspace(0, 1, steps=int((self.kernel_size)))
-        # print('a_:', self.a_)
-        # print('b_:', self.b_)
 
         p1 = (time_disc.to(device) - self.b_.to(device)) / self.a_.to(device)
 
         laplace_filter = Laplace(p1)
 
         self.filters = (laplace_filter).view(self.out_channels, 1, self.kernel_size).to(device)
-        # print('Laplace:', self.filters[0], self.filters[15])
 
 
-        return F.conv1d(waveforms, self.filters, stride=1, padding=1, dilation=1, bias=None, groups=1) #Laplace小波卷积
+        return F.conv1d(waveforms, self.filters, stride=1, padding=1, dilation=1, bias=None, groups=1) #Laplace wavelet convolution
 
 # --------------------------------------------------------
 
 
-def Mexh(p): #Mexhat小波基函数
-    # p = 0.04 * p  # 将时间转化为在[-5,5]这个区间内
+def Mexh(p): 
+#Mexhat wavelet basis function
     y = (1 - torch.pow(p, 2)) * torch.exp(-torch.pow(p, 2) / 2)
 
     return y
 
 class Mexh_fast(nn.Module):
+"""Mexhat wavelet convolution"""
 
     def __init__(self, out_channels, kernel_size, in_channels=1):
 
@@ -85,9 +85,9 @@ class Mexh_fast(nn.Module):
             self.kernel_size = self.kernel_size + 1
 
 
-        self.a_ = nn.Parameter((torch.linspace(1, 10, out_channels)).view(-1, 1), requires_grad=True) #尺度参数
+        self.a_ = nn.Parameter((torch.linspace(1, 10, out_channels)).view(-1, 1), requires_grad=True) #scale parameter
 
-        self.b_ = nn.Parameter((torch.linspace(0, 10, out_channels)).view(-1, 1), requires_grad=True) #平移参数
+        self.b_ = nn.Parameter((torch.linspace(0, 10, out_channels)).view(-1, 1), requires_grad=True) #translation parameters
 
     def forward(self, waveforms):
 
@@ -107,21 +107,22 @@ class Mexh_fast(nn.Module):
         Mexh_filter = torch.cat([Mexh_left, Mexh_right], dim=1)  # 40x1x250
 
         self.filters = (Mexh_filter).view(self.out_channels, 1, self.kernel_size).to(device)
-        # print('Mexh:', self.filters[0], self.filters[15])
 
-        return F.conv1d(waveforms, self.filters, stride=1, padding=1, dilation=1, bias=None, groups=1) #Mexhat小波卷积
+        return F.conv1d(waveforms, self.filters, stride=1, padding=1, dilation=1, bias=None, groups=1) #Mexhat wavelet convolution
 
 # --------------------------------------------------------
 
 
 
-def Morlet(p): #Morlet小波基函数
+def Morlet(p): 
+#Morlet wavelet basis function
     C = pow(pi, 0.25)
     # p = 0.03 * p
     y = C * torch.exp(-torch.pow(p, 2) / 2) * torch.cos(2 * pi * p)
     return y
 
 class Morlet_fast(nn.Module):
+"""Morlet wavelet convolution"""
 
     def __init__(self, out_channels, kernel_size, in_channels=1):
 
@@ -138,9 +139,9 @@ class Morlet_fast(nn.Module):
         if kernel_size % 2 == 0:
             self.kernel_size = self.kernel_size + 1
 
-        self.a_ = nn.Parameter((torch.linspace(1, 10, out_channels)).view(-1, 1), requires_grad=True) #尺度参数
+        self.a_ = nn.Parameter((torch.linspace(1, 10, out_channels)).view(-1, 1), requires_grad=True) #scale parameter
 
-        self.b_ = nn.Parameter((torch.linspace(0, 10, out_channels)).view(-1, 1), requires_grad=True) #平移参数
+        self.b_ = nn.Parameter((torch.linspace(0, 10, out_channels)).view(-1, 1), requires_grad=True) #translation parameters
 
     def forward(self, waveforms):
 
@@ -160,30 +161,31 @@ class Morlet_fast(nn.Module):
         Morlet_filter = torch.cat([Morlet_left, Morlet_right], dim=1)  # 40x1x250
 
         self.filters = (Morlet_filter).view(self.out_channels, 1, self.kernel_size).to(device)
-        # print('Morlet:', self.filters[0], self.filters[15])
 
-        return F.conv1d(waveforms, self.filters, stride=1, padding=1, dilation=1, bias=None, groups=1) #Morlet小波卷积
+        return F.conv1d(waveforms, self.filters, stride=1, padding=1, dilation=1, bias=None, groups=1) #Morlet wavelet convolution
 
 # --------------------------------------------------------
 
 
 
-def piecewise_linear(x, a, b): #根据阈值a和可学习参数去噪函数
+def piecewise_linear(x, a, b):
+"""Denoising function based on threshold a and learnable parameters"""
 
     row_indices = torch.randint(0, 16, (a.size(0),))
     b = b[row_indices]
 
-    # 当x大于a-b时
+    # if x > a-b
     y = torch.where(x >= (a-b).unsqueeze(-1),  x + (b - a).unsqueeze(-1), torch.tensor(0.))
-    # 当-a-b<=x<=a-b时
+    # if -a-b <= x <= a-b
     y = torch.where((x > (-a-b).unsqueeze(-1)) & (x < (a-b).unsqueeze(-1)), 0, y)
-    # 当x小于-a-b时
+    # if x < -a-b
     y = torch.where(x <= (-a-b).unsqueeze(-1), x + (b + a).unsqueeze(-1), y)
 
     return y
 
 
-class YUZHI(nn.Module): #计算阈值函数
+class YUZHI(nn.Module):
+"""Threshold calculation function"""
 
     def __init__(self, input_channels, hidden_size):
 
@@ -202,57 +204,56 @@ class YUZHI(nn.Module): #计算阈值函数
         x = torch.sigmoid(x)
         x = x * y
 
-        return x #输出自适应阈值
+        return x #Output adaptive threshold
 
-class SoftThreshold(nn.Module): #软阈值去噪函数
+class SoftThreshold(nn.Module): 
+"""Soft Thresholding Denoising Function"""
+
     def __init__(self):
+
         super(SoftThreshold, self).__init__()
-        #self.B_ = nn.Parameter((torch.randn(64))*0.3, requires_grad=True)
-        self.B_ = nn.Parameter((torch.full([16, 16], 1.0)), requires_grad=True) #可学习参数微调阈值
+
+        self.B_ = nn.Parameter((torch.full([16, 16], 1.0)), requires_grad=True) #The learnable parameters are used for fine-tuning the threshold
 
     def forward(self, x):
-        # print('xin:', x.shape)
-        # torch.save(x, 'ROBOT_beforedenoising.pt')
-        Threshold = YUZHI(16, 32) #设置阈值参数
-        A_ = Threshold(x) #计算阈值
-        #print('A_:', A_.shape)
-        #self.B_  = nn.Parameter((torch.full(A_.size(), 0.2)), requires_grad=True)
-        x = piecewise_linear(x, A_, self.B_.to(device)) #去噪
-        # torch.save(x, 'ROBOT_afterdenoising.pt')
-        return x #自适应阈值去噪后输出特征
+        Threshold = YUZHI(16, 32) #Call the threshold function
+        A_ = Threshold(x) #Calculate the threshold
+        x = piecewise_linear(x, A_, self.B_.to(device)) #Denoising
+
+        return x #Output features after adaptive threshold denoising
 # --------------------------------------------------------
 
 
 class EnergyEntropyWeightedLayer(nn.Module):
-    """能量与熵比加权层"""
+    """Energy and Entropy Ratio Weighted Layer"""
     def __init__(self):
 
         super(EnergyEntropyWeightedLayer, self).__init__()
     
     def forward(self, x):
 
-        energy = torch.sum(x ** 2, dim=2)  # 计算能量
+        energy = torch.sum(x ** 2, dim=2)  # Calculate energy
         # torch.save(energy, 'energy.pt')
         hii = x ** 2
         max_values, max_indices = torch.max(hii, dim=2)
         pii = hii /max_values.unsqueeze(-1)
-        pii[pii == 0] = 1 #避免log0为无穷无法计算
-        entropy = -torch.sum(pii * torch.log2(pii), dim=2)  # 计算熵
+        pii[pii == 0] = 1 #Avoid log0 being infinite and thus unable to be calculated.
+        entropy = -torch.sum(pii * torch.log2(pii), dim=2)  # Calculate entropy
 
-        weighted_term = energy / entropy #计算能量与熵比
+        weighted_term = energy / entropy #Calculate the ratio of energy to entropy
 
 
-        weights_normalized = torch.sigmoid(weighted_term) #权重归一化
+        weights_normalized = torch.sigmoid(weighted_term) #Weight normalization
 
         row_mins, _ = weights_normalized.min(dim=1, keepdim=True)
         row_maxs, _ = weights_normalized.max(dim=1, keepdim=True)
-        weights_normalized = (weights_normalized - row_mins) / (row_maxs - row_mins + 1e-8)  # +1e-8 避免除零
+        weights_normalized = (weights_normalized - row_mins) / (row_maxs - row_mins + 1e-8)  # +1e-8 Avoid division by zero
 
-        x = x + x * weights_normalized.unsqueeze(-1) #加权后通道特征
+        x = x + x * weights_normalized.unsqueeze(-1) #Weighted channel features
 
         return x
 
-class ConcatenateLayer(nn.Module): #通道拼接及加权函数
+class ConcatenateLayer(nn.Module): #Channel stitching and weighting function
 
     def __init__(self, dim=1):
 
@@ -265,9 +266,9 @@ class ConcatenateLayer(nn.Module): #通道拼接及加权函数
 
         EW = EnergyEntropyWeightedLayer()
 
-        x = torch.cat((x1, x2, x3), dim=self.dim) #三种小波系数通道拼接
-        x = EW(x) #能量与熵比通道加权
-        x = self.BN(x) #标准化
+        x = torch.cat((x1, x2, x3), dim=self.dim) #Combining three wavelet coefficient channels
+        x = EW(x) #Energy and entropy ratio channel weighting
+        x = self.BN(x) #Standardization
 
         return x
 
@@ -277,14 +278,15 @@ concat_layer = ConcatenateLayer(dim=1)
 
 
 class IADC_Net(nn.Module):
+"""IADC_Net"""
 
     def __init__(self, in_channel=1, out_channel=10):
 
-        super(FDWCN_Net, self).__init__()
+        super(IADC_Net, self).__init__()
 
         self.conv1_1 = nn.Sequential(
             Laplace_fast(16, 16),
-            SoftThreshold(), #软阈值去噪
+            SoftThreshold(), #Soft threshold denoising
             nn.BatchNorm1d(16),
             nn.MaxPool1d(kernel_size=2, stride=2),
         )
@@ -331,21 +333,21 @@ class IADC_Net(nn.Module):
 
     def forward(self, x):
 
-        x_1 = self.conv1_1(x) #Laplace小波卷积
-        x_2 = self.conv1_2(x) #Mexhat小波卷积
-        x_3 = self.conv1_3(x) #Morlet小波卷积
+        x_1 = self.conv1_1(x) #Laplace Wavelet Convolution
+        x_2 = self.conv1_2(x) #Mexhat Wavelet Convolution
+        x_3 = self.conv1_3(x) #Morlet Wavelet Convolution
 
-        x = concat_layer(x_1, x_2, x_3) #三种小波系数融合
+        x = concat_layer(x_1, x_2, x_3) #Fusion of three types of wavelet coefficients
 
-        x = self.conv2(x) #卷积层1
-        x = self.conv3(x) #卷积层2
+        x = self.conv2(x) #Convolutional Layer 1
+        x = self.conv3(x) #Convolutional Layer 2
 
-        x = x.view(x.size()[0], -1) #将上述特征拉伸为向量输入进全连接层实现分类
+        x = x.view(x.size()[0], -1) #Expand these features into vectors and input them into the fully connected layer to achieve classification.
 
-        x = self.fc1(x) #全连接层1
-        x = self.fc2(x) #全连接层2
-        logits = self.fc3(x)  #全连接层3
+        x = self.fc1(x) #Fully connected layer 1
+        x = self.fc2(x) #Fully connected layer 2
+        logits = self.fc3(x)  #Fully connected layer 3
 
-        probas = F.softmax(logits, dim=1)  # softmax分类器
+        probas = F.softmax(logits, dim=1)  # Softmax classifier
 
         return logits, probas
