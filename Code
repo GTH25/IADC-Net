@@ -233,10 +233,8 @@ class EnergyEntropyWeightedLayer(nn.Module):
     def forward(self, x):
 
         energy = torch.sum(x ** 2, dim=2)  # Calculate energy
-        # torch.save(energy, 'energy.pt')
         hii = x ** 2
-        max_values, max_indices = torch.max(hii, dim=2)
-        pii = hii /max_values.unsqueeze(-1)
+        pii = hii /energy.unsqueeze(-1)
         pii[pii == 0] = 1 #Avoid log0 being infinite and thus unable to be calculated.
         entropy = -torch.sum(pii * torch.log2(pii), dim=2)  # Calculate entropy
 
